@@ -20,16 +20,8 @@ const cachePath = opts.cache;
 
 const server = http.createServer((req, res) => {
     if(req.method == 'GET'){
-        let body;
         
-        body = getCache(new URL(req.url), opts.cache);
-
-        res.statusCode = 404;
-        res.setHeader('Content-Type', 'text/plain');
-        res.end(e.message);
-
-        
-        body.then((value) => {
+        getCache(new URL(req.url), opts.cache).then((value) => {
             res.statusCode = 200;
             res.setHeader('Content-Type', 'image/jpeg');
             res.end = value;
