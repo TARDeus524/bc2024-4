@@ -5,17 +5,13 @@ const path = require('path');
 const superagent = require('superagent');
 
 program
-    .option('-h, --host <ip>', 'ip address of the server')
-    .option('-p, --port <port>', 'port of the server')
-    .option('-c, --cache <path>', 'path to cache files');
+    .requiredOption('-h, --host <ip>', 'ip address of the server')
+    .requiredOption('-p, --port <port>', 'port of the server')
+    .requiredOption('-c, --cache <path>', 'path to cache files');
 
 program.parse(process.argv);
 
 const opts = program.opts();
-
-if (!opts.host) throw new Error('no ip');
-if (!opts.port) throw new Error('no port');
-if (!opts.cache) throw new Error('no cache path');
 
 const cachePath = opts.cache;
 
@@ -42,12 +38,12 @@ const server = http.createServer((req, res) => {
                         });
                 })
                 .catch((error) => {
-                    console.error('Error fetching from external API:', error);
+                    console.error('Error fetching:', error);
                     res.statusCode = 404;
                     res.end('Image not found');
                 });
         });
-    } else if (req.method === 'POST') {
+    } else if (req.method === 'PUT') {
         saveImage(req, cachePath).then(() => {
             res.statusCode = 201;
             res.setHeader('Content-Type', 'text/plain');
@@ -78,13 +74,15 @@ server.listen(opts.port, opts.host, () => {
 function getCache(URL, cacheDir) {
     const code = URL.substring(1);
     const filePath = path.join(cacheDir, `${code}.jpeg`);
+
     return fs.promises.readFile(filePath); 
 }
 
 function saveImage(req, cacheDir) {
     const code = req.url.substring(1);
     const filePath = path.join(cacheDir, `${code}.jpeg`);
-    
+
+    if(!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
     fs.promises.writeFile(filePath, req.end);
 }
 
