@@ -12,7 +12,6 @@ program
 program.parse(process.argv);
 
 const opts = program.opts();
-
 const cachePath = opts.cache;
 
 const server = http.createServer((req, res) => {
@@ -20,12 +19,12 @@ const server = http.createServer((req, res) => {
         getCache(req.url, cachePath).then((value) => {
             res.statusCode = 200;
             res.setHeader('Content-Type', 'image/jpeg');
-            res.end(value); 
+            res.end(value);
         }).catch((err) => {
             superagent.get(`https://http.cat${req.url}`)
                 .buffer(true)
                 .then((response) => {
-                    fs.promises.writeFile(path.join(cachePath, `${req.url.substring(1)}.jpeg`), response.body)
+                    saveImage(response.body, req.url, cachePath)
                         .then(() => {
                             res.statusCode = 200;
                             res.setHeader('Content-Type', 'image/jpeg');
@@ -44,17 +43,23 @@ const server = http.createServer((req, res) => {
                 });
         });
     } else if (req.method === 'PUT') {
-        saveImage(req, cachePath).then(() => {
-            res.statusCode = 201;
-            res.setHeader('Content-Type', 'text/plain');
-            res.end('Image saved successfully');
-        }).catch((err) => {
-            res.statusCode = 500;
-            res.setHeader('Content-Type', 'text/plain');
-            res.end(err.message);
+        let body = [];
+        req.on('data', (chunk) => {
+            body.push(chunk);
+        }).on('end', () => {
+            const buffer = Buffer.concat(body);
+            saveImage(buffer, req.url, cachePath).then(() => {
+                res.statusCode = 201;
+                res.setHeader('Content-Type', 'text/plain');
+                res.end('Image saved successfully');
+            }).catch((err) => {
+                res.statusCode = 500;
+                res.setHeader('Content-Type', 'text/plain');
+                res.end(err.message);
+            });
         });
     } else if (req.method === 'DELETE') {
-        deleteCache(req, cachePath).then(() => {
+        deleteCache(req.url, cachePath).then(() => {
             res.statusCode = 200;
             res.end('Image deleted successfully');
         }).catch((err) => {
@@ -74,20 +79,22 @@ server.listen(opts.port, opts.host, () => {
 function getCache(URL, cacheDir) {
     const code = URL.substring(1);
     const filePath = path.join(cacheDir, `${code}.jpeg`);
-
-    return fs.promises.readFile(filePath); 
+    return fs.promises.readFile(filePath);
 }
 
-function saveImage(req, cacheDir) {
-    const code = req.url.substring(1);
+function saveImage(data, url, cacheDir) {
+    const code = url.substring(1); 
     const filePath = path.join(cacheDir, `${code}.jpeg`);
 
-    if(!fs.existsSync(cacheDir)) fs.mkdirSync(cacheDir);
-    fs.promises.writeFile(filePath, req.end);
+    if (!fs.existsSync(cacheDir)) {
+        fs.mkdirSync(cacheDir, { recursive: true });
+    }
+
+    return fs.promises.writeFile(filePath, data);
 }
 
-function deleteCache(req, cacheDir) {
-    const code = req.url.substring(1);
+function deleteCache(url, cacheDir) {
+    const code = url.substring(1); 
     const filePath = path.join(cacheDir, `${code}.jpeg`);
     return fs.promises.unlink(filePath);
 }
